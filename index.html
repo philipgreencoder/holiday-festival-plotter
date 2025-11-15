@@ -1,153 +1,98 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🌎 World Festival Map</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-h1 {
-  margin: 20px 0;
-}
-#controls {
-  margin-bottom: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-#controls input, #controls select, #controls button {
-  margin: 5px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-#map {
-  height: 80vh;
-  width: 90vw;
-  max-width: 1200px;
-  border: 2px solid #333;
-  border-radius: 10px;
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Festivals Explorer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+      color: #222;
+    }
+    h1 { text-align: center; }
+    #searchBox {
+      width: 100%; padding: 12px; margin-bottom: 20px;
+      border-radius: 8px; border: 1px solid #aaa;
+    }
+    #result {
+      background: #fff; padding: 20px; border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .images img {
+      width: 180px; height: auto; margin: 8px; border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
+  <h1>World Festivals Explorer</h1>
+  <input id="searchBox" placeholder="Search any festival... (ex: Diwali)" />
+  <div id="result">Type a festival name above.</div>
 
-<h1>🌎 World Festival Map</h1>
-
-<div id="controls">
-  <input type="text" id="search" placeholder="Search festival or country">
-  <select id="typeFilter">
-    <option value="all">All Types</option>
-    <option value="music">Music</option>
-    <option value="food">Food</option>
-    <option value="culture">Culture</option>
-    <option value="tradition">Tradition</option>
-  </select>
-  <select id="monthFilter">
-    <option value="all">All Months</option>
-    <option value="1">January</option>
-    <option value="2">February</option>
-    <option value="3">March</option>
-    <option value="4">April</option>
-    <option value="5">May</option>
-    <option value="6">June</option>
-    <option value="7">July</option>
-    <option value="8">August</option>
-    <option value="9">September</option>
-    <option value="10">October</option>
-    <option value="11">November</option>
-    <option value="12">December</option>
-  </select>
-  <button onclick="applyFilters()">Apply Filters</button>
-</div>
-
-<div id="map"></div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-// Initialize map
-const map = L.map('map').setView([20, 0], 2);
+// ---------------- CONFIG ----------------
+const CALENDARIFIC_API_KEY = "Ki0V2X3XAougOSlBbQLjPTZzesmn84g1";
+const WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql";
+const WIKIPEDIA_API = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
 
-// Add OpenStreetMap tiles
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
-
-// Sample festival data
-const festivals = [
-  { name: "Rio Carnival", country: "Brazil", type: "music", month: 2, lat: -22.9068, lon: -43.1729, description: "The biggest carnival in the world, full of samba and parades.", image: "https://upload.wikimedia.org/wikipedia/commons/9/97/Rio_Carnival_2014.jpg" },
-  { name: "Oktoberfest", country: "Germany", type: "food", month: 10, lat: 48.1351, lon: 11.5820, description: "World-famous beer festival with traditional Bavarian food.", image: "https://upload.wikimedia.org/wikipedia/commons/6/66/Munich_Oktoberfest_2012.JPG" },
-  { name: "Diwali", country: "India", type: "tradition", month: 11, lat: 28.6139, lon: 77.2090, description: "Festival of lights celebrated across India with lamps and fireworks.", image: "https://upload.wikimedia.org/wikipedia/commons/9/91/Diwali_lights.jpg" },
-  { name: "Cherry Blossom Festival", country: "Japan", type: "culture", month: 4, lat: 35.6762, lon: 139.6503, description: "Spring festival celebrating cherry blossoms and Japanese culture.", image: "https://upload.wikimedia.org/wikipedia/commons/0/0e/Cherry_blossoms_at_Ueno_Park.jpg" }
-];
-
-// Store markers
-let markers = [];
-
-// Add markers to map
-function addMarkers() {
-  festivals.forEach(f => {
-    const marker = L.circleMarker([f.lat, f.lon], { radius: 10, color: getColor(f.type), fillOpacity: 0.7 }).addTo(map);
-    marker.bindPopup(`<h3>${f.name} (${f.country})</h3><img src="${f.image}" width="200"><p>${f.description}</p>`);
-    marker.festivalType = f.type;
-    marker.festivalMonth = f.month;
-    marker.name = f.name.toLowerCase();
-    marker.country = f.country.toLowerCase();
-    markers.push(marker);
-  });
-}
-
-// Color based on type
-function getColor(type) {
-  switch(type) {
-    case 'music': return 'red';
-    case 'food': return 'orange';
-    case 'culture': return 'green';
-    case 'tradition': return 'blue';
-    default: return 'gray';
+// ---------------- FUNCTIONS ----------------
+async function getWikipediaSummary(name){
+  try{
+    let r = await fetch(WIKIPEDIA_API + encodeURIComponent(name));
+    let d = await r.json();
+    return d.extract || "No summary available.";
+  } catch{
+    return "No Wikipedia page found.";
   }
 }
 
-// Filter function
-function applyFilters() {
-  const type = document.getElementById('typeFilter').value;
-  const month = document.getElementById('monthFilter').value;
-  const search = document.getElementById('search').value.toLowerCase();
-
-  markers.forEach(marker => {
-    const matchesType = type === 'all' || marker.festivalType === type;
-    const matchesMonth = month === 'all' || marker.festivalMonth == month;
-    const matchesSearch = search === '' || marker.name.includes(search) || marker.country.includes(search);
-
-    if (matchesType && matchesMonth && matchesSearch) {
-      marker.addTo(map);
-    } else {
-      map.removeLayer(marker);
-    }
-  });
+async function getCommonsImages(name){
+  let url = `${COMMONS_API}?action=query&generator=search&gsrsearch=${encodeURIComponent(name)}&gsrlimit=8&prop=imageinfo&iiprop=url&format=json&origin=*`;
+  let r = await fetch(url); let d = await r.json();
+  let pages = d?.query?.pages || {};
+  return Object.values(pages).map(p=>p.imageinfo?.[0]?.url).filter(Boolean);
 }
 
-// Handle shareable links
-function loadFromURL() {
-  const params = new URLSearchParams(window.location.search);
-  const festivalName = params.get('festival');
-  if(festivalName) {
-    const marker = markers.find(m => m.name === festivalName.toLowerCase());
-    if(marker) {
-      map.setView(marker.getLatLng(), 5);
-      marker.openPopup();
-    }
+async function getWikidataInfo(name){
+  let query = `SELECT ?festival ?festivalLabel ?countryLabel ?image WHERE {
+      ?festival wdt:P31 wd:Q132241.
+      OPTIONAL { ?festival wdt:P495 ?country. }
+      OPTIONAL { ?festival wdt:P18 ?image. }
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+  }`;
+
+  let url = WIKIDATA_ENDPOINT + "?format=json&query=" + encodeURIComponent(query);
+  let r = await fetch(url); let j = await r.json();
+  let rows = j.results.bindings;
+
+  return rows.find(f => f.festivalLabel.value.toLowerCase() === name.toLowerCase()) || null;
+}
+
+async function searchFestival(name){
+  let summary = await getWikipediaSummary(name);
+  let images = await getCommonsImages(name);
+  let wikidata = await getWikidataInfo(name);
+
+  document.getElementById("result").innerHTML = `
+    <h2>${name}</h2>
+    <p>${summary}</p>
+
+    ${wikidata ? `<p><b>Country:</b> ${wikidata.countryLabel?.value || "Unknown"}</p>` : ""}
+
+    <div class="images">
+      ${(images.length ? images.map(i=>`<img src="${i}">`).join("") : "No images found.")}
+    </div>
+  `;
+}
+
+// ---------------- LISTENER ----------------
+document.getElementById("searchBox").addEventListener("keydown", e=>{
+  if(e.key === "Enter"){
+    searchFestival(e.target.value.trim());
   }
-}
-
-// Initialize
-addMarkers();
-loadFromURL();
+});
 </script>
-
 </body>
 </html>
