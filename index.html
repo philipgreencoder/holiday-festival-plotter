@@ -1,457 +1,192 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>FestMap — Local-first festivals + on-demand holidays</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holiday & Festival Plotter</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-:root{
-  --bg:#0b0b0b; --card:#131216; --muted:#9a9aa0;
-  --accent:#b71c1c; --accent-2:#7f0f0f; --glass: rgba(255,255,255,0.03);
-  --radius:12px; --soft: 0 8px 30px rgba(0,0,0,0.6); --text:#eaeaea;
-}
-html,body{height:100%;margin:0;background:
-  radial-gradient(circle at 10% 10%, rgba(183,28,28,0.04), transparent 8%),
-  linear-gradient(180deg,#070708 0%, #0b0b0b 100%);
-  color:var(--text); font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;}
-.container{width:min(1180px,94%);margin:18px auto;display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start;}
-.left{background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); padding:14px;border-radius:var(--radius);box-shadow:var(--soft);border:1px solid rgba(255,255,255,0.02)}
-.panel{background:var(--card); padding:14px;border-radius:var(--radius);box-shadow:var(--soft);border:1px solid rgba(255,255,255,0.02)}
-.header-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.brand{display:flex;gap:12px;align-items:center}
-.logo{width:46px;height:46px;border-radius:10px;background:linear-gradient(180deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:700}
-.title{font-weight:700;font-size:18px}
-.controls{display:flex;gap:8px;margin-top:12px;align-items:center}
-.input{flex:1;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:var(--text);outline:none}
-.select, .btn{padding:9px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);cursor:pointer}
-.btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent-2));border:none}
-.map-wrap{height:64vh;border-radius:10px;overflow:hidden;margin-top:12px;border:1px solid rgba(255,255,255,0.03)}
-#map{height:100%;width:100%}
-.suggestions{position:relative}
-.dropdown{position:absolute;left:0;right:0;top:46px;max-height:280px;overflow:auto;background:#0e0e0f;border-radius:10px;border:1px solid rgba(255,255,255,0.02);z-index:999}
-.item{padding:8px 12px;cursor:pointer;color:var(--text);border-bottom:1px solid rgba(255,255,255,0.01)}
-.item:hover{background:rgba(255,255,255,0.02)}
-.details{grid-column:1/-1;display:flex;gap:16px;margin-top:16px}
-.meta{width:360px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);padding:12px;border-radius:10px}
-.gallery{flex:1;display:flex;gap:8px;flex-wrap:wrap;padding:6px}
-.thumb{width:160px;height:100px;object-fit:cover;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
-.small{width:110px;height:70px}
-.note{color:var(--muted);font-size:13px}
-.footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
-@media (max-width:980px){ .container{grid-template-columns:1fr} .meta{width:100%} .details{flex-direction:column} }
+  body { margin:0; font-family:'Arial',sans-serif; background: linear-gradient(135deg,#1a1a1a 0%,#2c2c2c 100%); color:#fff; }
+  .container { max-width:1200px; margin:auto; padding:20px; }
+  h1 { text-align:center; color:#e74c3c; margin-bottom:10px; }
+  .description-box { background:#222; padding:15px; border-radius:12px; margin-bottom:20px; text-align:center; color:#ccc; }
+  .search-container { display:flex; justify-content:center; margin-bottom:15px; position:relative; }
+  #festival-input { width:100%; padding:12px; border-radius:12px; border:none; outline:none; font-size:16px; background-color:#333; color:#fff; }
+  .suggestions { position:absolute; top:48px; width:100%; background:#222; border-radius:0 0 12px 12px; max-height:200px; overflow-y:auto; z-index:1000; }
+  .suggestions div { padding:10px; cursor:pointer; }
+  .suggestions div:hover { background:#e74c3c; }
+  #map { height:500px; border-radius:12px; margin-bottom:20px; }
+  .festival-card { display:flex; flex-direction:row; background-color:#333; padding:20px; border-radius:12px; margin-bottom:20px; box-shadow:0 0 20px rgba(231,76,60,0.5); opacity:0; transform:translateY(20px); transition: all 0.6s ease; }
+  .festival-card.visible { opacity:1; transform:translateY(0); }
+  .festival-info { flex:1; padding-right:15px; }
+  .festival-info h2 { margin-top:0; color:#e74c3c; }
+  .festival-info p { margin:5px 0; line-height:1.3em; }
+  .festival-images { flex:1; display:flex; flex-direction:column; gap:10px; }
+  .festival-images img { width:100%; border-radius:12px; }
+  @media(max-width:900px){ .festival-card{flex-direction:column;} .festival-info{padding-right:0;} }
 </style>
 </head>
 <body>
-  <div class="container">
-    <div class="left">
-      <div class="header-row">
-        <div class="brand">
-          <div class="logo">FM</div>
-          <div>
-            <div class="title">FestMap</div>
-            <div class="note">Local-first festivals + on-demand holidays</div>
-          </div>
-        </div>
-        <div>
-          <button class="btn" id="clearCacheBtn">Clear cache</button>
-        </div>
-      </div>
-
-      <div class="controls">
-        <div class="suggestions" style="flex:1">
-          <input id="searchBox" class="input" placeholder="Type festival or holiday (e.g., Diwali, Holi, Easter)"/>
-          <div id="suggestBox" class="dropdown" style="display:none"></div>
-        </div>
-
-        <select id="countryFilter" class="select">
-          <option value="all">All countries</option>
-        </select>
-
-        <button id="searchBtn" class="btn primary">Go</button>
-      </div>
-
-      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
-        <button class="btn" id="searchHolidaysBtn">Search Holidays (Calendarific)</button>
-        <small class="note" style="margin-left:6px">Only runs when you click — saves API quota.</small>
-      </div>
-
-      <div class="map-wrap">
-        <div id="map"></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div style="font-weight:700">About FestMap</div>
-      <div class="note" style="margin-top:8px">
-        FestMap uses a local curated festival dataset (you put `festivals_dataset.json` in the repo root) for accurate names, coordinates and images. Click "Search Holidays (Calendarific)" to fetch official holidays only when you want them. Wikipedia and Unsplash are used only as fallbacks when a festival lacks description or images.
-      </div>
-      <div style="margin-top:12px">
-        <div class="note">Today's events</div>
-        <div id="todayList" class="note" style="margin-top:8px">loading…</div>
-      </div>
-    </div>
-
-    <div class="details">
-      <div class="meta">
-        <div style="font-weight:700;font-size:16px" id="metaName">Select a festival or holiday</div>
-        <div id="metaDate" class="note" style="margin-top:8px"></div>
-        <div id="metaCountry" class="note" style="margin-top:8px"></div>
-        <div id="metaDesc" style="margin-top:12px;color:var(--muted);line-height:1.4"></div>
-        <div style="margin-top:12px"><span class="note">Share:</span> <a id="metaShare" href="#" target="_blank">link</a></div>
-      </div>
-      <div class="gallery" id="gallery"></div>
-    </div>
-  </div>
-
-  <div class="footer">Made with ❤️ · Data: local curated dataset + Calendarific (on demand) + Wikipedia/Unsplash fallbacks · Hosted on GitHub Pages</div>
+<div class="container">
+<h1>Holiday & Festival Plotter</h1>
+<div class="description-box">Type a festival or holiday. The map will fly to its country, and you'll see info and images on the side.</div>
+<div class="search-container">
+<input type="text" id="festival-input" placeholder="Search festivals/holidays...">
+<div class="suggestions" id="suggestions"></div>
+</div>
+<div id="map"></div>
+<div id="festival-info"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-/* ======================
-   CONFIG — paste your keys
-   ====================== */
-const CALENDARIFIC_KEY = 'PASTE_YOUR_CALENDARIFIC_KEY_HERE'; // on-demand use only
-const UNSPLASH_KEY = 'PASTE_YOUR_UNSPLASH_KEY_HERE'; // optional fallback for images
+// ================= API KEYS =================
+const CALENDARIFIC_API_KEY = "YOUR_CALENDARIFIC_KEY";
+const ABSTRACT_API_KEY = "YOUR_ABSTRACT_KEY";
 
-/* filenames & settings */
-const FESTIVAL_JSON = 'festivals_dataset.json'; // MUST be in repo root
-const CAL_SEARCH_YEAR = new Date().getFullYear();
-const CACHE_KEY = 'festmap_v3_cache';
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours cache
+// ================= COUNTRY COORDINATES =================
+const countryCoords = {
+"US":[37.0902,-95.7129],"IN":[20.5937,78.9629],"RU":[61.5240,105.3188],
+"CN":[35.8617,104.1954],"BR":[-14.2350,-51.9253],"MX":[23.6345,-102.5528],
+"FR":[46.2276,2.2137],"DE":[51.1657,10.4515],"JP":[36.2048,138.2529],
+"IT":[41.8719,12.5674],"ES":[40.4637,-3.7492],"CA":[56.1304,-106.3468],
+"AU":[-25.2744,133.7751],"GB":[55.3781,-3.4360],"AR":[-38.4161,-63.6167],
+"ZA":[-30.5595,22.9375],"EG":[26.8206,30.8025],"KR":[35.9078,127.7669],
+"SE":[60.1282,18.6435],"NO":[60.4720,8.4689],"CH":[46.8182,8.2275],
+"NL":[52.1326,5.2913],"BE":[50.5039,4.4699],"AT":[47.5162,14.5501],
+"DK":[56.2639,9.5018],"FI":[61.9241,25.7482],"PL":[51.9194,19.1451],
+"PT":[39.3999,-8.2245],"GR":[39.0742,21.8243],"TR":[38.9637,35.2433],
+"IR":[32.4279,53.6880],"PK":[30.3753,69.3451],"BD":[23.6850,90.3563],
+"ID":[-0.7893,113.9213],"TH":[15.8700,100.9925],"MY":[4.2105,101.9758],
+"SG":[1.3521,103.8198],"PH":[12.8797,121.7740],"VN":[14.0583,108.2772],
+"AE":[23.4241,53.8478],"SA":[23.8859,45.0792],"IL":[31.0461,34.8516],
+"NG":[9.0820,8.6753],"KE":[-0.0236,37.9062],"TZ":[-6.3690,34.8888],
+"CO":[4.5709,-74.2973],"CL":[-35.6751,-71.5430],"PE":[-9.189967,-75.015152],
+"VE":[6.4238,-66.5897],"NZ":[-40.9006,174.8860],"IE":[53.4129,-8.2439],
+"PT":[39.3999,-8.2245],"HU":[47.1625,19.5033],"CZ":[49.8175,15.4730],
+"SK":[48.6690,19.6990],"RO":[45.9432,24.9668],"BG":[42.7339,25.4858],
+"UA":[48.3794,31.1656],"BY":[53.7098,27.9534],"LT":[55.1694,23.8813],
+"LV":[56.8796,24.6032],"EE":[58.5953,25.0136],"IS":[64.9631,-19.0208]
+};
 
-/* UI elements */
-const searchBox = document.getElementById('searchBox');
-const suggestBox = document.getElementById('suggestBox');
-const searchBtn = document.getElementById('searchBtn');
-const countryFilter = document.getElementById('countryFilter');
-const clearCacheBtn = document.getElementById('clearCacheBtn');
-const searchHolidaysBtn = document.getElementById('searchHolidaysBtn');
-const todayList = document.getElementById('todayList');
-const metaName = document.getElementById('metaName');
-const metaDate = document.getElementById('metaDate');
-const metaCountry = document.getElementById('metaCountry');
-const metaDesc = document.getElementById('metaDesc');
-const metaShare = document.getElementById('metaShare');
-const gallery = document.getElementById('gallery');
-
-/* Map */
+// ================= MAP INITIALIZATION =================
 const map = L.map('map').setView([20,0],2);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
+let currentMarker = null;
 
-/* App state */
-let curated = [];      // local dataset
-let holidays = [];     // calendarific results (on demand)
-let allEvents = [];    // merged curated + holidays (when searched)
-let markers = [];
-let indexList = [];    // for suggestions
+// ================= AUTOCOMPLETE =================
+let festivalNames = [];
+const input=document.getElementById("festival-input");
+const suggestionsContainer=document.getElementById("suggestions");
+const festivalInfo=document.getElementById("festival-info");
 
-/* simple cache */
-function loadCache(){ try { const raw = localStorage.getItem(CACHE_KEY); if(!raw) return null; const obj = JSON.parse(raw); if(Date.now()-obj.ts > CACHE_TTL) return null; return obj.data; } catch(e){ return null; } }
-function saveCache(data){ try { localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch(e){} }
-function clearCache(){ localStorage.removeItem(CACHE_KEY); alert('Cache cleared'); location.reload(); }
-
-/* helpers */
-function escapeHtml(s){ if(!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-/* load local curated dataset */
-async function loadLocalFestivals(){
-  const cached = loadCache();
-  if(cached && cached.curated) {
-    curated = cached.curated;
-    console.log('Loaded curated from cache');
-    return;
-  }
+input.addEventListener("input",function(){
+  const value=this.value.toLowerCase();
+  suggestionsContainer.innerHTML="";
+  if(!value) return;
+  const filtered=festivalNames.filter(name=>name.toLowerCase().startsWith(value));
+  filtered.forEach(name=>{// ================= FETCH FESTIVAL/HOLIDAY DATA =================
+async function fetchFestivalData(name){
+  festivalInfo.innerHTML="<p>Loading...</p>";
   try{
-    const r = await fetch(FESTIVAL_JSON);
-    if(!r.ok) throw new Error('Missing ' + FESTIVAL_JSON);
-    const j = await r.json();
-    // if file structure is { "festivals": [...] } handle both possibilities
-    curated = Array.isArray(j) ? j : (j.festivals || j.events || []);
-    saveCache({ curated: curated }); // cache curated locally
-  } catch(e){
-    alert('Error loading curated dataset. Make sure ' + FESTIVAL_JSON + ' is in the repo root.');
-    console.error(e);
-    curated = [];
-  }
-}
+    const year = new Date().getFullYear();
+    let foundHoliday = null;
+    let foundCountry = null;
 
-/* build index for suggestions */
-function buildIndex(){
-  indexList = curated.map(f => ({ name: f.name, country: f.country || '', id: f.id || f.name }));
-}
+    // Search across all countries
+    for(const countryCode in countryCoords){
+      const url = `https://calendarific.com/api/v2/holidays?api_key=${CALENDARIFIC_API_KEY}&country=${countryCode}&year=${year}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if(data.response && data.response.holidays){
+        const holiday = data.response.holidays.find(h => h.name.toLowerCase() === name.toLowerCase());
+        if(holiday){ 
+          foundHoliday = holiday; 
+          foundCountry = countryCode; 
+          break; 
+        }
+      }
+    }
 
-/* suggestions dropdown */
-function showSuggestions(q){
-  const p = (q||'').toLowerCase().trim();
-  if(!p){ suggestBox.style.display='none'; return; }
-  const matches = indexList.filter(it => it.name.toLowerCase().startsWith(p)).slice(0,12);
-  suggestBox.innerHTML = '';
-  matches.forEach(m => {
-    const el = document.createElement('div'); el.className='item';
-    el.innerHTML = `<div>${escapeHtml(m.name)}</div><div class="note">${escapeHtml(m.country)}</div>`;
-    el.onclick = ()=> { searchBox.value = m.name; suggestBox.style.display='none'; performSearch(m.name); };
-    suggestBox.appendChild(el);
-  });
-  suggestBox.style.display = matches.length ? 'block' : 'none';
-}
+    if(!foundHoliday){
+      festivalInfo.innerHTML="<p>Festival not found.</p>"; 
+      return; 
+    }
 
-/* perform search using local dataset first */
-async function performSearch(q){
-  if(!q) return;
-  const ql = q.toLowerCase();
-  // exact priority
-  let ev = curated.find(f => (f.name||'').toLowerCase() === ql);
-  if(!ev) ev = curated.find(f => (f.name||'').toLowerCase().includes(ql));
-  if(ev){
-    showEvent(ev);
-    return;
-  }
-  // not found locally -> prompt user to (optionally) search Calendarific (explicit)
-  const doCal = confirm('Event not found in curated dataset. Do you want to search Calendarific (official holidays) now? This will use one API request.');
-  if(doCal){
-    const country = prompt('Enter country ISO code to search holidays in (e.g., IN, US). Leave blank to search all available countries (may be slow).') || '';
-    const calResults = await searchCalendarific(q, country.toUpperCase());
-    if(calResults.length === 0) { alert('No matching holidays found in Calendarific.'); return; }
-    // show the first result (you can extend to display list)
-    const r = calResults[0];
-    // normalize to same shape as curated
-    const normalized = {
-      id: `cal:${r.country}:${r.name}:${r.date}`,
-      name: r.name,
-      country: r.country,
-      date: r.date,
-      type: Array.isArray(r.type) ? r.type.join(', ') : (r.type || 'holiday'),
-      description: r.description || '',
-      lat: 0, lon: 0,
-      images: []
-    };
-    holidays = [normalized]; // store latest holidays result
-    showEvent(normalized);
-  } else {
-    alert('Search cancelled or no local match.');
-  }
-}
+    // Add to autocomplete list dynamically if new
+    if(!festivalNames.includes(foundHoliday.name)) festivalNames.push(foundHoliday.name);
 
-/* show event in panel and zoom map */
-async function showEvent(ev){
-  metaName.innerText = ev.name || '';
-  metaDate.innerText = ev.date ? ('Date: ' + ev.date) : '';
-  metaCountry.innerText = ev.country ? ('Country: ' + ev.country) : '';
-  metaShare.href = window.location.origin + window.location.pathname + '?event=' + encodeURIComponent(ev.name || '');
-  metaShare.innerText = 'link';
-  // description: curated -> wiki fallback
-  let desc = ev.description || ev.short_description || '';
-  if(!desc) desc = await fetchWikipediaSummary(ev.name) || '';
-  metaDesc.innerText = desc || (ev.type || '') || 'No description available.';
-  // images: curated -> unsplash fallback
-  gallery.innerHTML = '';
-  let imgs = Array.isArray(ev.images) && ev.images.length ? ev.images.slice(0,10) : [];
-  if(imgs.length === 0){
-    const uns = await fetchUnsplashImages(ev.name + ' festival');
-    if(uns && uns.length) imgs = uns;
-  }
-  if(imgs.length){
-    imgs.forEach(u => {
-      const im = document.createElement('img'); im.src = u; im.className = 'thumb'; im.loading='lazy';
-      im.onclick = ()=> window.open(u,'_blank');
-      gallery.appendChild(im);
+    // ================= FETCH IMAGES FROM ABSTRACT API =================
+    const abstractURL = `https://api.abstractapi.com/v1/images?api_key=${ABSTRACT_API_KEY}&query=${encodeURIComponent(name + " festival")}&limit=3`;
+    const imgRes = await fetch(abstractURL);
+    const imgData = await imgRes.json();
+    const images = imgData.results || [];
+
+    // ================= MAP FLY-TO AND MARKER =================
+    const coords = countryCoords[foundCountry] || [20,0];
+    map.flyTo(coords,5,{animate:true,duration:2});
+    if(currentMarker) map.removeLayer(currentMarker);
+    currentMarker = L.marker(coords).addTo(map).bindPopup(foundHoliday.name).openPopup();
+
+    // ================= BUILD FESTIVAL CARD =================
+    let imgHTML = "";
+    images.forEach(img=>{
+      if(img.url) imgHTML += `<img src="${img.url}" alt="${foundHoliday.name}">`;
     });
-  } else gallery.innerHTML = '<div class="note">No images available</div>';
-  // zoom map to coordinates (if present) or country centroid (if available)
-  const lat = (typeof ev.lat === 'number' && Math.abs(ev.lat) <= 90) ? ev.lat : (countryCentroid(ev.country) || {}).lat;
-  const lon = (typeof ev.lon === 'number' && Math.abs(ev.lon) <= 180) ? ev.lon : (countryCentroid(ev.country) || {}).lon;
-  if(lat && lon) map.setView([lat, lon], ev.lat && ev.lon ? 8 : 5);
-  // open marker if exists
-  const mk = markers.find(m => m._ev && (m._ev.id === ev.id || m._ev.name === ev.name));
-  if(mk) mk.openPopup();
-}
 
-/* fetch Wikipedia summary (public endpoint) */
-async function fetchWikipediaSummary(title){
-  try{
-    const url = 'https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title);
-    const r = await fetch(url);
-    if(!r.ok) return null;
-    const j = await r.json();
-    return j.extract || null;
-  } catch(e){ return null; }
-}
+    // Short 3-line description
+    let shortDesc = foundHoliday.description ? foundHoliday.description.split(" ").slice(0,40).join(" ") + "..." : "No description available.";
 
-/* Unsplash fallback search (returns array of image URLs) */
-async function fetchUnsplashImages(query){
-  if(!UNSPLASH_KEY) return [];
-  try{
-    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=6&client_id=${encodeURIComponent(UNSPLASH_KEY)}`;
-    const r = await fetch(url);
-    if(!r.ok) return [];
-    const j = await r.json();
-    return (j.results || []).map(it => it.urls.small);
-  }catch(e){ console.warn('Unsplash err', e); return []; }
-}
+    festivalInfo.innerHTML=`
+      <div class="festival-card">
+        <div class="festival-info">
+          <h2>${foundHoliday.name}</h2>
+          <p>${shortDesc}</p>
+          <p>Country: ${foundHoliday.country.name} | Date: ${foundHoliday.date.iso}</p>
+        </div>
+        <div class="festival-images">${imgHTML}</div>
+      </div>
+    `;
 
-/* Calendarific on-demand search — single request per explicit search call
-   If country param is provided, request is limited to that country.
-   If country is empty, we request but Calendarific may only return for the specified country param; free plan may limit.
-*/
-async function searchCalendarific(query, countryCode=''){
-  if(!CALENDARIFIC_KEY) { alert('Calendarific key not set in the config'); return []; }
-  // If the user supplied a country code, use it. Otherwise ask for one to avoid huge requests.
-  const currentYear = CAL_SEARCH_YEAR;
-  let results = [];
-  // we will call Calendarific for the country provided only (explicit) to save quota
-  const targetCountries = countryCode ? [countryCode] : [];
-  if(targetCountries.length === 0){
-    const ask = confirm('No country provided. Searching across all countries uses more quota. Proceed?');
-    if(!ask) return [];
-    // you chose to proceed — but we will ask for list of countries separated by comma to limit requests
-    const cc = prompt('Enter comma-separated ISO country codes to search (e.g., IN,US,GB). Leave blank to cancel.');
-    if(!cc) return [];
-    targetCountries.splice(0, targetCountries.length, ...cc.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean));
+    // Trigger fade-in
+    const card=document.querySelector(".festival-card");
+    setTimeout(()=>{ card.classList.add("visible"); },50);
+
+  }catch(err){
+    console.error(err); 
+    festivalInfo.innerHTML="<p>Error fetching data.</p>"; 
   }
+}
 
-  // sequential small polite loop
-  for(let i=0;i<targetCountries.length;i++){
-    const c = targetCountries[i];
+// ================= POPULATE AUTOCOMPLETE WITH INITIAL DATA =================
+async function populateAutocomplete(){
+  const year = new Date().getFullYear();
+  for(const countryCode in countryCoords){
     try{
-      const url = `https://calendarific.com/api/v2/holidays?api_key=${encodeURIComponent(CALENDARIFIC_KEY)}&country=${encodeURIComponent(c)}&year=${currentYear}`;
-      const r = await fetch(url);
-      if(!r.ok){ console.warn('Calendarific fetch failed for', c, r.status); continue; }
-      const j = await r.json();
-      if(!j.response || !Array.isArray(j.response.holidays)) continue;
-      // filter locally by query (case-insensitive)
-      const matches = j.response.holidays.filter(h => (h.name || '').toLowerCase().includes(query.toLowerCase()));
-      matches.forEach(h => {
-        results.push({
-          name: h.name,
-          date: h.date?.iso || '',
-          description: h.description || '',
-          country: c,
-          type: h.type || []
+      const url = `https://calendarific.com/api/v2/holidays?api_key=${CALENDARIFIC_API_KEY}&country=${countryCode}&year=${year}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if(data.response && data.response.holidays){
+        data.response.holidays.forEach(h => {
+          if(!festivalNames.includes(h.name)) festivalNames.push(h.name);
         });
-      });
-    } catch(e){ console.warn('Calendarific error', e); }
-    // small polite delay
-    await new Promise(r=>setTimeout(r, 300));
+      }
+    }catch(err){ console.error("Error fetching holidays for " + countryCode, err); }
   }
-  return results;
 }
 
-/* plotting helpers */
-function clearMarkers(){ markers.forEach(m=>map.removeLayer(m)); markers=[]; }
-function addMarker(ev){
-  if(!ev) return;
-  const lat = (typeof ev.lat === 'number' && Math.abs(ev.lat) <= 90) ? ev.lat : (countryCentroid(ev.country) || {}).lat;
-  const lon = (typeof ev.lon === 'number' && Math.abs(ev.lon) <= 180) ? ev.lon : (countryCentroid(ev.country) || {}).lon;
-  if(!lat || !lon) return;
-  const m = L.marker([lat, lon], { title: ev.name }).addTo(map);
-  m.bindPopup(`<strong>${escapeHtml(ev.name)}</strong><br/><small>${escapeHtml(ev.country||ev.type||'')}</small>`);
-  m._ev = ev;
-  m.on('click', ()=> showEvent(ev));
-  markers.push(m);
-}
-function plotAll(list){
-  clearMarkers();
-  list.forEach(ev => addMarker(ev));
-}
-
-/* country centroid fallback */
-function countryCentroid(codeOrName){
-  if(!codeOrName) return {lat:20, lon:0};
-  const c = (codeOrName || '').toUpperCase();
-  const table = {
-    "US":{lat:38,lon:-97},"IN":{lat:20,lon:77},"BR":{lat:-14,lon:-51},"DE":{lat:51,lon:10},
-    "JP":{lat:36,lon:138},"GB":{lat:54,lon:-2},"FR":{lat:46,lon:2},"IT":{lat:42.5,lon:12.5},
-    "ES":{lat:40,lon:-4},"CN":{lat:35,lon:103},"RU":{lat:60,lon:100},"CA":{lat:56,lon:-106},"MX":{lat:23,lon:-102}
-  };
-  return table[c] || null;
-}
-
-/* today's events (from curated + holidays when present) */
-function updateToday(){
-  const today = new Date().toISOString().slice(0,10);
-  const todays = curated.filter(e => e.date && e.date.startsWith(today));
-  // include holidays results if any
-  const holToday = holidays.filter(h => h.date && h.date.startsWith(today)).map(h => ({name:h.name,country:h.country}));
-  const combined = todays.map(t=>`${t.name} (${t.country||''})`).concat(holToday.map(h=>`${h.name} (${h.country})`));
-  todayList.innerHTML = combined.length ? combined.join('<br/>') : 'None';
-}
-
-/* populate country filter */
-function populateCountryFilter(){
-  const set = new Set(curated.map(f => f.country).filter(Boolean));
-  const arr = Array.from(set).sort();
-  countryFilter.innerHTML = '<option value="all">All countries</option>';
-  arr.forEach(c=>{
-    const o = document.createElement('option'); o.value=c; o.innerText=c; countryFilter.appendChild(o);
-  });
-}
-
-/* load everything local-first */
-async function main(){
-  await loadLocalFestivals(); buildIndex(); populateCountryFilter(); plotAll(curated); updateToday(); setStatus('Ready');
-  // deep-link support ?event=...
-  const params = new URLSearchParams(window.location.search); const ev = params.get('event');
-  if(ev) setTimeout(()=> performSearch(ev), 800);
-}
-
-/* build suggestion index */
-function buildIndex(){
-  indexList = curated.map(f => ({ name: f.name, country: f.country || '', id: f.id || f.name }));
-}
-
-/* UI wiring */
-function setStatus(txt){ /* small console status in console for dev */ console.log(txt); }
-
-searchBox.addEventListener('input', e=> showSuggestions(e.target.value));
-searchBtn.addEventListener('click', ()=> performSearch(searchBox.value));
-clearCacheBtn.addEventListener('click', ()=> clearCache());
-searchHolidaysBtn.addEventListener('click', async ()=>{
-  const q = prompt('Enter holiday name to search (e.g., Diwali, Christmas):');
-  if(!q) return;
-  const country = prompt('Enter country ISO code to search in (e.g., IN, US). Leave blank to input multiple codes separated by comma if you want:','IN') || '';
-  const results = await searchCalendarific(q, country.toUpperCase());
-  if(results.length === 0) { alert('No holidays found'); return; }
-  // show first result (could be extended to show list)
-  const r = results[0];
-  // normalize and show
-  const normalized = { id:`cal:${r.country}:${r.name}`, name:r.name, date:r.date, country:r.country, description:r.description||'', images:[], lat:0, lon:0, type:'holiday' };
-  holidays = [normalized];
-  showEvent(normalized);
-});
-
-countryFilter.addEventListener('change', ()=>{
-  const v = countryFilter.value;
-  const list = v === 'all' ? curated : curated.filter(f => f.country === v);
-  plotAll(list);
-});
-
-/* suggestion dropdown click outside hide */
-document.addEventListener('click', e => { if(!document.getElementById('suggestBox').contains(e.target) && e.target !== searchBox) suggestBox.style.display='none'; });
-
-/* helper showSuggestions referenced before defined */
-function showSuggestions(q){
-  showSuggestionsInner(q);
-}
-function showSuggestionsInner(q){
-  const p = (q||'').toLowerCase().trim();
-  if(!p){ suggestBox.style.display='none'; return; }
-  const matches = indexList.filter(it => it.name.toLowerCase().startsWith(p)).slice(0,12);
-  suggestBox.innerHTML = '';
-  matches.forEach(m=>{
-    const el = document.createElement('div'); el.className='item';
-    el.innerHTML = `<div>${escapeHtml(m.name)}</div><div class="note">${escapeHtml(m.country)}</div>`;
-    el.onclick = ()=> { searchBox.value = m.name; suggestBox.style.display='none'; performSearch(m.name); };
-    suggestBox.appendChild(el);
-  });
-  suggestBox.style.display = matches.length ? 'block' : 'none';
-}
-
-/* --------------------
-   Start the app
-   -------------------- */
-main();
+// Populate initial autocomplete list in background
+populateAutocomplete();
 </script>
 </body>
 </html>
+
+    const div=document.createElement("div");
+    div.textContent=name;
+    div.addEventListener("click",()=>{input.value=name;suggestionsContainer.innerHTML="";fetchFestivalData(name);});
+    suggestionsContainer.appendChild(div);
+  });
+});
+
