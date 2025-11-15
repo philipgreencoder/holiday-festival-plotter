@@ -1,98 +1,508 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>World Festivals Explorer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f5f5f5;
-      color: #222;
-    }
-    h1 { text-align: center; }
-    #searchBox {
-      width: 100%; padding: 12px; margin-bottom: 20px;
-      border-radius: 8px; border: 1px solid #aaa;
-    }
-    #result {
-      background: #fff; padding: 20px; border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .images img {
-      width: 180px; height: auto; margin: 8px; border-radius: 8px;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FestMap — Live Festivals & Holidays</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  /* --- Matte red & black theme + faded background --- */
+  :root{
+    --bg:#0f0f10; /* near-black */
+    --card:#131316; /* slightly lighter */
+    --muted:#8a8a8f;
+    --accent:#b71c1c; /* matte red */
+    --accent-2:#7f0f0f;
+    --glass: rgba(255,255,255,0.03);
+    --radius:14px;
+    --soft: 0 6px 20px rgba(0,0,0,0.6);
+  }
+  html,body{height:100%;margin:0;background:
+    radial-gradient(circle at 10% 10%, rgba(183,28,28,0.06), transparent 8%),
+    radial-gradient(circle at 90% 90%, rgba(0,0,0,0.15), transparent 20%),
+    linear-gradient(180deg, #0a0a0b 0%, #0f0f10 100%);
+    color:#eee;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+  header{width:100%;display:flex;justify-content:center;padding:20px 10px;box-sizing:border-box}
+  .container{width:min(1180px,94%);display:grid;grid-template-columns: 1fr 380px;gap:18px;align-items:start;}
+
+  /* left column: map and search */
+  .left { border-radius:var(--radius); background:var(--card); padding:16px; box-shadow:var(--soft); }
+  .map-wrap{height:64vh;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.03);}
+  #map { height:100%; width:100%; }
+
+  /* right column: info box + today list + controls */
+  .panel { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:14px; border-radius:var(--radius); box-shadow:var(--soft); border:1px solid rgba(255,255,255,0.02); }
+  .brand { font-weight:700; color:#fff; font-size:18px; display:flex; gap:8px; align-items:center; }
+  .desc { color:var(--muted); margin-top:8px; font-size:13px; line-height:1.35; }
+  .controls { margin-top:12px; display:flex; gap:8px; align-items:center; }
+  input.search { flex:1; padding:10px 12px; background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:#fff; border-radius:12px; outline:none; font-size:14px; box-shadow:none; }
+  .select, button { padding:9px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.04); background:linear-gradient(180deg,var(--card),#0e0e0f); color:#fff; cursor:pointer; }
+  button.primary { background: linear-gradient(180deg,var(--accent),var(--accent-2)); border:none; }
+  button.ghost { background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--muted); }
+
+  /* suggestion dropdown */
+  .suggestions { position:relative; }
+  .dropdown { position:absolute; left:0; right:0; top:46px; max-height:280px; overflow:auto; background:#0d0d0e; border-radius:10px; border:1px solid rgba(255,255,255,0.03); box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index:9999; }
+  .item { padding:8px 12px; color:#eee; cursor:pointer; display:flex; justify-content:space-between; gap:8px; align-items:center; border-bottom:1px solid rgba(255,255,255,0.01); }
+  .item:hover, .item.active { background: rgba(255,255,255,0.02); }
+
+  /* bottom info + gallery (full width) */
+  .details { grid-column:1/-1; display:flex; gap:16px; margin-top:16px; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); padding:14px; border-radius:var(--radius); border:1px solid rgba(255,255,255,0.02); box-shadow:var(--soft); }
+  .details .meta { width:360px; min-height:140px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border-radius:12px; padding:12px; color:#eee; }
+  .details .gallery { flex:1; display:flex; gap:8px; flex-wrap:wrap; padding:6px; align-content:flex-start; justify-content:flex-start; }
+
+  .thumb { width:160px; height:100px; object-fit:cover; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.03); }
+  .small { width:110px; height:70px; }
+
+  /* today list */
+  .today { margin-top:10px; font-size:13px; color:var(--muted); }
+
+  footer { width:100%; display:flex; justify-content:center; padding:18px 10px; color:var(--muted); font-size:13px; }
+
+  /* responsive */
+  @media (max-width:980px){ .container{grid-template-columns:1fr; } .left{order:1} .panel{order:2} .details{flex-direction:column} .details .meta{width:100%} .details .gallery{width:100%} }
+</style>
 </head>
 <body>
-  <h1>World Festivals Explorer</h1>
-  <input id="searchBox" placeholder="Search any festival... (ex: Diwali)" />
-  <div id="result">Type a festival name above.</div>
 
-<script>
-// ---------------- CONFIG ----------------
-const CALENDARIFIC_API_KEY = "Ki0V2X3XAougOSlBbQLjPTZzesmn84g1";
-const WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql";
-const WIKIPEDIA_API = "https://en.wikipedia.org/api/rest_v1/page/summary/";
-const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
+<header>
+  <div class="container">
+    <div class="left">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="display:flex;flex-direction:column;">
+          <div style="display:flex;gap:12px;align-items:center;">
+            <div style="width:44px;height:44px;background:linear-gradient(180deg,var(--accent),var(--accent-2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;">FM</div>
+            <div style="line-height:1;">
+              <div style="font-weight:700;font-size:18px;color:#fff">FestMap</div>
+              <div style="font-size:12px;color:var(--muted)">Interactive festivals & holiday explorer</div>
+            </div>
+          </div>
+        </div>
 
-// ---------------- FUNCTIONS ----------------
-async function getWikipediaSummary(name){
-  try{
-    let r = await fetch(WIKIPEDIA_API + encodeURIComponent(name));
-    let d = await r.json();
-    return d.extract || "No summary available.";
-  } catch{
-    return "No Wikipedia page found.";
-  }
-}
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="ghost" id="clearCacheBtn">Clear cache</button>
+          <button class="ghost" id="reloadBtn">Reload data</button>
+        </div>
+      </div>
 
-async function getCommonsImages(name){
-  let url = `${COMMONS_API}?action=query&generator=search&gsrsearch=${encodeURIComponent(name)}&gsrlimit=8&prop=imageinfo&iiprop=url&format=json&origin=*`;
-  let r = await fetch(url); let d = await r.json();
-  let pages = d?.query?.pages || {};
-  return Object.values(pages).map(p=>p.imageinfo?.[0]?.url).filter(Boolean);
-}
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+        <div class="suggestions" style="flex:1;position:relative;">
+          <input id="searchInput" class="search" placeholder="Type festival or holiday (e.g., Diwali, Easter, Oktoberfest)" autocomplete="off" />
+          <div id="suggestDropdown" class="dropdown" style="display:none;"></div>
+        </div>
 
-async function getWikidataInfo(name){
-  let query = `SELECT ?festival ?festivalLabel ?countryLabel ?image WHERE {
-      ?festival wdt:P31 wd:Q132241.
-      OPTIONAL { ?festival wdt:P495 ?country. }
-      OPTIONAL { ?festival wdt:P18 ?image. }
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-  }`;
+        <select id="countrySelect" class="select" title="Filter country">
+          <option value="all">All countries</option>
+        </select>
 
-  let url = WIKIDATA_ENDPOINT + "?format=json&query=" + encodeURIComponent(query);
-  let r = await fetch(url); let j = await r.json();
-  let rows = j.results.bindings;
+        <button class="primary" id="goBtn">Go</button>
+      </div>
 
-  return rows.find(f => f.festivalLabel.value.toLowerCase() === name.toLowerCase()) || null;
-}
+      <div class="map-wrap" style="margin-top:12px;">
+        <div id="map"></div>
+      </div>
 
-async function searchFestival(name){
-  let summary = await getWikipediaSummary(name);
-  let images = await getCommonsImages(name);
-  let wikidata = await getWikidataInfo(name);
-
-  document.getElementById("result").innerHTML = `
-    <h2>${name}</h2>
-    <p>${summary}</p>
-
-    ${wikidata ? `<p><b>Country:</b> ${wikidata.countryLabel?.value || "Unknown"}</p>` : ""}
-
-    <div class="images">
-      ${(images.length ? images.map(i=>`<img src="${i}">`).join("") : "No images found.")}
     </div>
-  `;
+
+    <div class="panel">
+      <div class="brand">About this site</div>
+      <div class="desc">
+        FestMap plots festivals and holidays around the world in real time. Search for an event, click a suggestion and the map will zoom to the location. Details and images are shown in the panel below. Data comes from Calendarific (holidays) and Wikidata/Wikimedia (festivals + images). Use <strong>Clear cache</strong> if you want fresh fetches.
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="today" id="todayWidget">Today's events: loading…</div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <div style="flex:1">
+          <small class="note">Theme</small>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button class="ghost" id="themeInfo">Red/Black</button>
+            <button class="ghost" id="themeCompact">Compact</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- details & gallery full width -->
+    <div class="details">
+      <div class="meta" id="detailMeta">
+        <div style="font-weight:700;font-size:16px" id="metaTitle">Select a festival or search to view details</div>
+        <div id="metaDate" style="margin-top:8px;color:var(--muted);font-size:13px"></div>
+        <div id="metaDesc" style="margin-top:10px;color:var(--muted);font-size:14px;line-height:1.35"></div>
+        <div style="margin-top:12px;font-size:13px;color:var(--muted)">Share link: <a id="shareLink" href="#">—</a></div>
+      </div>
+      <div class="gallery" id="gallery"></div>
+    </div>
+  </div>
+</header>
+
+<footer>
+  <div>Made with ❤️ · Data: Calendarific & Wikidata/Wikimedia · Hosted on GitHub Pages</div>
+</footer>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+/* ===============================
+   CONFIG - Paste your API key here
+   =============================== */
+const CAL_API_KEY = 'Ki0V2X3XAougOSlBbQLjPTZzesmn84g1'; // <<-- replace with your Calendarific key
+
+/* Settings */
+const CAL_COUNTRIES = ['US','IN','BR','DE','JP','GB','FR','IT','ES','CN','RU','CA','AU','MX','ZA','NG','KR','TR','AR']; // large sample
+const CAL_YEAR = new Date().getFullYear();
+const CACHE_KEY = 'festmap_cache_v1';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/* UI references */
+const searchInput = document.getElementById('searchInput');
+const dropdown = document.getElementById('suggestDropdown');
+const goBtn = document.getElementById('goBtn');
+const countrySelect = document.getElementById('countrySelect');
+const todayWidget = document.getElementById('todayWidget');
+const metaTitle = document.getElementById('metaTitle');
+const metaDate = document.getElementById('metaDate');
+const metaDesc = document.getElementById('metaDesc');
+const gallery = document.getElementById('gallery');
+const shareLink = document.getElementById('shareLink');
+const statusClearBtn = document.getElementById('clearCacheBtn');
+const reloadBtn = document.getElementById('reloadBtn');
+
+/* Map init (uniform marker style) */
+const map = L.map('map', { zoomControl:true, attributionControl:true }).setView([20,0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+
+/* helper utilities */
+function saveCache(obj){ try { localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(),data:obj})); } catch(e){} }
+function loadCache(){ try { const raw = localStorage.getItem(CACHE_KEY); if(!raw) return null; const wrapper = JSON.parse(raw); if(Date.now()-wrapper.ts > CACHE_TTL) return null; return wrapper.data; } catch(e){ return null; } }
+function clearCache(){ localStorage.removeItem(CACHE_KEY); alert('Cache cleared. Click Reload data to fetch fresh data.'); }
+
+/* Country centroids (expandable) */
+const COUNTRY_COORDS = {
+  "US": {lat:38,lon:-97},"IN":{lat:20,lon:77},"BR":{lat:-14,lon:-51},"DE":{lat:51,lon:10},"JP":{lat:36,lon:138},
+  "GB":{lat:54,lon:-2},"FR":{lat:46,lon:2},"IT":{lat:42.5,lon:12.5},"ES":{lat:40,lon:-4},"CN":{lat:35,lon:103},
+  "RU":{lat:60,lon:100},"CA":{lat:56,lon:-106},"AU":{lat:-25,lon:133},"MX":{lat:23,lon:-102},"ZA":{lat:-30,lon:25},
+  "NG":{lat:9,lon:8},"KR":{lat:36,lon:128},"TR":{lat:39,lon:35},"AR":{lat:-34,lon:-64}
+};
+
+/* state */
+let allEvents = []; // combined
+let markers = [];   // leaflet markers
+let commonsImagesPool = []; // fallback images
+
+/* ----- Fetch helpers ----- */
+
+/* 1) Calendarific holidays for a country */
+async function fetchCalendarificCountry(country){
+  const url = `https://calendarific.com/api/v2/holidays?api_key=${encodeURIComponent(CAL_API_KEY)}&country=${encodeURIComponent(country)}&year=${CAL_YEAR}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Calendarific: ' + res.status);
+  const j = await res.json();
+  if(!j.response || !Array.isArray(j.response.holidays)) return [];
+  return j.response.holidays.map(h => {
+    const date = h.date?.iso || '';
+    return {
+      id: `cal:${country}:${h.name}:${date}`,
+      name: h.name,
+      date,
+      description: h.description || '',
+      type: 'holiday',
+      source: 'calendarific',
+      country,
+      lat: COUNTRY_COORDS[country]?.lat || 0,
+      lon: COUNTRY_COORDS[country]?.lon || 0,
+      images: [] // filled later
+    };
+  });
 }
 
-// ---------------- LISTENER ----------------
-document.getElementById("searchBox").addEventListener("keydown", e=>{
-  if(e.key === "Enter"){
-    searchFestival(e.target.value.trim());
+/* 2) Fetch multiple countries sequentially (polite) */
+async function fetchAllCalendarific(countries){
+  const out = [];
+  for(let i=0;i<countries.length;i++){
+    try {
+      const c = countries[i];
+      setStatus(`Fetching holidays ${i+1}/${countries.length}: ${c}`);
+      const arr = await fetchCalendarificCountry(c);
+      out.push(...arr);
+    } catch(err){
+      console.warn('cal fetch err',err);
+    }
+    await new Promise(r=>setTimeout(r, 300)); // small delay
   }
+  return out;
+}
+
+/* 3) Wikidata festivals SPARQL */
+async function fetchWikidataFestivals(limit=600) {
+  setStatus('Fetching festivals from Wikidata...');
+  const sparql = `
+    SELECT ?item ?itemLabel ?desc ?coord ?image WHERE {
+      ?item wdt:P31 wd:Q12531.
+      OPTIONAL { ?item wdt:P625 ?coord. }
+      OPTIONAL { ?item wdt:P18 ?image. }
+      OPTIONAL { ?item schema:description ?desc. FILTER(LANG(?desc)="en") }
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+    } LIMIT ${limit}
+  `;
+  const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql);
+  const res = await fetch(url, { headers:{ 'Accept':'application/sparql-results+json' } });
+  if(!res.ok) throw new Error('Wikidata: ' + res.status);
+  const j = await res.json();
+  return j.results.bindings.map(b => {
+    let lat=0, lon=0;
+    if(b.coord && b.coord.value){
+      const m = b.coord.value.match(/Point\\(([-0-9.]+) ([-0-9.]+)\\)/);
+      if(m){ lon = parseFloat(m[1]); lat = parseFloat(m[2]); }
+    }
+    return {
+      id: b.item?.value || ('wik:' + (b.itemLabel?.value||Math.random())),
+      name: b.itemLabel?.value || 'Unnamed',
+      date: '',
+      description: b.desc?.value || '',
+      type: 'festival',
+      source: 'wikidata',
+      country: '',
+      lat, lon,
+      images: b.image ? [b.image.value] : []
+    };
+  });
+}
+
+/* 4) Basic Commons images fetch (Category:Festivals) - limited pages */
+async function fetchCommonsImages(limit=300){
+  setStatus('Fetching images from Wikimedia Commons...');
+  const endpoint = 'https://commons.wikimedia.org/w/api.php';
+  let images = [];
+  let gcmcontinue = null;
+  const perPage = 50;
+  while(images.length < limit){
+    const params = new URLSearchParams({
+      action:'query',
+      generator:'categorymembers',
+      gcmtype:'file',
+      gcmtitle:'Category:Festivals',
+      gcmnamespace:'6',
+      gcmlimit:perPage,
+      prop:'imageinfo',
+      iiprop:'url|extmetadata',
+      format:'json',
+      origin:'*'
+    });
+    if(gcmcontinue) params.set('gcmcontinue', gcmcontinue);
+    const url = endpoint + '?' + params.toString();
+    try {
+      const res = await fetch(url);
+      if(!res.ok) break;
+      const j = await res.json();
+      if(j.query && j.query.pages){
+        const pages = Object.values(j.query.pages);
+        pages.forEach(p=>{
+          if(p.imageinfo && p.imageinfo[0] && p.imageinfo[0].url) images.push({ url: p.imageinfo[0].url, title:p.title });
+        });
+      }
+      if(j.continue && j.continue.gcmcontinue) gcmcontinue = j.continue.gcmcontinue; else break;
+    } catch(e){ console.warn('commons err',e); break; }
+    await new Promise(r=>setTimeout(r, 250));
+  }
+  return images.slice(0, limit);
+}
+
+/* ----- merging and plotting ----- */
+
+function clearMarkers(){
+  markers.forEach(m=>map.removeLayer(m));
+  markers = [];
+}
+
+function createMarker(ev){
+  if(typeof ev.lat !== 'number' || typeof ev.lon !== 'number') return null;
+  if(ev.lat===0 && ev.lon===0) return null;
+  const marker = L.circleMarker([ev.lat, ev.lon], { radius:7, color:'#dcdcdc', fillColor:'#1a1a1a', weight:1, fillOpacity:0.9 }).addTo(map);
+  marker.bindPopup(`<strong>${escape(ev.name)}</strong><br><small>${escape(ev.type)}</small>`);
+  marker._ev = ev;
+  marker.eventName = (ev.name||'').toLowerCase();
+  marker.eventCountry = (ev.country||'').toLowerCase();
+  marker.eventMonth = ev.date ? (new Date(ev.date).getMonth()+1) : 0;
+  markers.push(marker);
+  marker.on('click', ()=> showDetails(ev));
+  return marker;
+}
+
+function plotAllEvents(list){
+  clearMarkers();
+  list.forEach(ev => createMarker(ev));
+  setStatus(`Plotted ${markers.length} events`, false);
+}
+
+/* show detail in bottom panel */
+function showDetails(ev){
+  metaTitle.innerText = ev.name || 'Unknown';
+  metaDate.innerText = ev.date ? 'Date: ' + ev.date : '';
+  metaDesc.innerText = ev.description || (ev.source === 'calendarific' ? 'Holiday (no extra description)' : '');
+  shareLink.href = window.location.origin + window.location.pathname + '?event=' + encodeURIComponent(ev.name || '');
+  shareLink.innerText = 'link';
+  gallery.innerHTML = '';
+  const imgs = Array.isArray(ev.images) ? ev.images : [];
+  if(imgs.length===0 && commonsImagesPool.length) imgs.push(commonsImagesPool[Math.floor(Math.random()*commonsImagesPool.length)].url);
+  imgs.slice(0,12).forEach(u => {
+    const img = document.createElement('img'); img.src = u; img.className = 'thumb'; img.loading='lazy';
+    img.onclick = ()=> window.open(u,'_blank');
+    gallery.appendChild(img);
+  });
+}
+
+/* escape helper */
+function escape(s){ if(!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* search/autocomplete logic */
+function buildIndex(data){
+  // data: events array
+  const list = data.map(e => ({ name:e.name, id:e.id, lat:e.lat, lon:e.lon, country:e.country || '' }));
+  return list;
+}
+
+let indexList = [];
+function showSuggestions(prefix){
+  const p = (prefix||'').toLowerCase().trim();
+  if(!p){ dropdown.style.display='none'; return; }
+  const matches = indexList.filter(it => it.name && it.name.toLowerCase().startsWith(p)).slice(0,12);
+  dropdown.innerHTML = '';
+  matches.forEach(m=>{
+    const el = document.createElement('div'); el.className='item';
+    el.innerHTML = `<div>${escape(m.name)}</div><div style="color:var(--muted);font-size:12px">${escape(m.country||'')}</div>`;
+    el.onclick = ()=> { searchInput.value = m.name; dropdown.style.display='none'; onSelectName(m.name); };
+    dropdown.appendChild(el);
+  });
+  dropdown.style.display = matches.length ? 'block' : 'none';
+}
+
+/* when user selects or presses Go */
+function onSelectName(name){
+  const lower = name.toLowerCase();
+  // find first event with that name
+  const ev = allEvents.find(e => (e.name||'').toLowerCase() === lower) || allEvents.find(e => (e.name||'').toLowerCase().includes(lower));
+  if(ev){
+    // center map on event coords if available, else country centroid
+    const lat = ev.lat || (COUNTRY_COORDS[ev.country]?.lat || 20);
+    const lon = ev.lon || (COUNTRY_COORDS[ev.country]?.lon || 0);
+    map.setView([lat, lon], ev.lat && ev.lon ? 8 : 5);
+    showDetails(ev);
+    // open popup for marker if exists
+    const mark = markers.find(m => m._ev && (m._ev.id === ev.id || (m._ev.name === ev.name)));
+    if(mark){ mark.openPopup(); }
+  } else {
+    alert('No matching event found');
+  }
+  dropdown.style.display = 'none';
+}
+
+/* init country select */
+function populateCountrySelect(){
+  const codes = Array.from(new Set(allEvents.map(e=>e.country).filter(Boolean))).sort();
+  countrySelect.innerHTML = '<option value="all">All countries</option>';
+  codes.forEach(c=>{
+    const opt = document.createElement('option'); opt.value = c; opt.innerText = c; countrySelect.appendChild(opt);
+  });
+}
+
+/* build today widget */
+function updateTodayWidget(){
+  const today = new Date().toISOString().slice(0,10);
+  const todayList = allEvents.filter(e=> e.date && e.date.startsWith(today));
+  todayWidget.innerHTML = todayList.length ? ('Today: ' + todayList.map(e=>escape(e.name)+' ('+escape(e.country||'')+')').join('<br>')) : 'Today: none';
+}
+
+/* main orchestration - try cache then live */
+async function main(){
+  setStatus('Initializing...');
+  const cached = loadCache();
+  if(cached){
+    setStatus('Loaded data from cache', false);
+    allEvents = cached;
+    indexList = buildIndex(allEvents);
+    plotAllEvents(allEvents);
+    populateCountrySelect();
+    updateTodayWidget();
+    highlightFromURL();
+    return;
+  }
+
+  try {
+    setStatus('Fetching live data (Calendarific, Wikidata, Commons). This may take a while...');
+    const [calList, wikList, commons] = await Promise.all([
+      fetchAllCalendarific(CAL_COUNTRIES),
+      fetchWikidataFestivals(600),
+      fetchCommonsImages(300)
+    ]);
+    commonsImagesPool = commons;
+    // simple merge
+    const merged = [];
+    // mark calendarific country code as country name (we'll use code)
+    calList.forEach(h=> merged.push(h));
+    wikList.forEach(f=> merged.push(f));
+    // assign fallback images from commons pool
+    let idx=0;
+    merged.forEach(e=>{
+      if(!e.images || !e.images.length){
+        if(commonsImagesPool[idx]) e.images = [commonsImagesPool[idx].url];
+        idx = (idx+1) % commonsImagesPool.length;
+      }
+    });
+    allEvents = merged;
+    saveCache(allEvents);
+    indexList = buildIndex(allEvents);
+    plotAllEvents(allEvents);
+    populateCountrySelect();
+    updateTodayWidget();
+    highlightFromURL();
+    setStatus('Live data loaded & cached — use search to find events', false);
+  } catch(err){
+    console.error(err);
+    setStatus('Failed to fetch live data. Check console. Try clearing cache & reload.', false);
+  }
+}
+
+/* highlight event if URL contains ?event= */
+function highlightFromURL(){
+  const params = new URLSearchParams(window.location.search);
+  const ev = params.get('event');
+  if(ev){ onSelectName(ev); }
+}
+
+/* UI wiring */
+searchInput.addEventListener('input', (e)=> showSuggestions(e.target.value));
+searchInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){ onSelectName(searchInput.value); dropdown.style.display='none'; }
 });
+goBtn.addEventListener('click', ()=> onSelectName(searchInput.value));
+statusClearBtn.addEventListener('click', ()=> clearCache());
+reloadBtn.addEventListener('click', ()=> { clearCache(); location.reload(); });
+document.addEventListener('click', (e)=> { if(!dropdown.contains(e.target) && e.target !== searchInput) dropdown.style.display='none'; });
+
+/* apply country filter via select */
+countrySelect.addEventListener('change', ()=>{
+  const c = countrySelect.value;
+  const list = c === 'all' ? allEvents : allEvents.filter(e => e.country === c);
+  plotAllEvents(list);
+});
+
+/* helper status updater */
+function setStatus(msg, busy=true){ /* small status in panel footer area via todayWidget */ 
+  // show subtle text in todayWidget area when busy
+  const el = document.getElementById('todayWidget');
+  if(busy) el.innerHTML = `<span style="opacity:.9">${msg}</span>`; else el.innerHTML = `<span style="color:var(--muted)">${msg}</span>`;
+}
+
+/* expose debug */
+window._festmap = { main, allEvents };
+
+/* kick off */
+main();
 </script>
 </body>
 </html>
